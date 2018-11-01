@@ -1,28 +1,6 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-# This script to install Kubernetes will get executed after we have provisioned the box 
-$setregistryproxy = <<-REGISTRY
-# Add environment vars pointing Docker to use the proxy
-mkdir -p /etc/systemd/system/docker.service.d
-cat << EOD > /etc/systemd/system/docker.service.d/http-proxy.conf
-[Service]
-Environment="HTTP_PROXY=http://192.168.40.50:3128/"
-Environment="HTTPS_PROXY=http://192.168.40.50:3128/"
-EOD
-
-# Get the CA certificate from the proxy and make it a trusted root.
-curl http://192.168.40.50:3128/ca.crt > /usr/share/ca-certificates/docker_registry_proxy.crt
-echo "docker_registry_proxy.crt" >> /etc/ca-certificates.conf
-update-ca-certificates --fresh
-
-# Reload systemd
-systemctl daemon-reload
-
-# Restart dockerd
-systemctl restart docker.service
-REGISTRY
-
 Vagrant.configure("2") do |config|
   os = "bento/ubuntu-16.04"
   net_ip = "192.168.40"
@@ -41,8 +19,6 @@ Vagrant.configure("2") do |config|
     master_config.vm.network "private_network", ip: "#{net_ip}.10"
 
     master_config.vm.provision "docker"
-    master_config.vm.provision "shell", inline: $setregistryproxy
-
     master_config.vm.provision "shell", inline: <<-SHELL
       cat /vagrant/public_key >> .ssh/authorized_keys
 
@@ -75,7 +51,6 @@ EOF
       mkdir -p ~vagrant/.kube
       sudo cp -i /etc/kubernetes/admin.conf ~vagrant/.kube/config
       sudo chown vagrant:vagrant ~vagrant/.kube/config
-
     SHELL
   end
 
@@ -83,20 +58,19 @@ EOF
     ["node1",    "#{net_ip}.11",    "1024",    os ],
     ["node2",    "#{net_ip}.12",    "1024",    os ],
   ].each do |vmname,ip,mem,os|
-    config.vm.define "#{vmname}" do |node_config|
-      node_config.vm.provider "virtualbox" do |vb|
+    config.vm.define "#{vmname}" do |minion_config|
+      minion_config.vm.provider "virtualbox" do |vb|
           vb.memory = "#{mem}"
           vb.cpus = 1
           vb.name = "#{vmname}"
       end
-      node_config.vm.box = "#{os}"
-      node_config.vm.hostname = "#{vmname}"
-      node_config.vm.network "private_network", ip: "#{ip}"
+      minion_config.vm.box = "#{os}"
+      minion_config.vm.hostname = "#{vmname}"
+      minion_config.vm.network "private_network", ip: "#{ip}"
 
-      node_config.vm.provision "docker"
-      node_config.vm.provision "shell", inline: $setregistryproxy
+      minion_config.vm.provision "docker"
 
-      node_config.vm.provision "shell", inline: <<-SHELL
+      minion_config.vm.provision "shell", inline: <<-SHELL
         cat /vagrant/public_key >> .ssh/authorized_keys
 
         sudo tee -a /etc/hosts << 'EOF'

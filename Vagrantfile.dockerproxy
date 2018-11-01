@@ -1,0 +1,33 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  os = "bento/ubuntu-16.04"
+  net_ip = "192.168.40.50"
+  vm_name = "dockerproxy"
+
+  config.vm.define :dockerproxy, primary: true do |dockerproxy_config|
+    dockerproxy_config.vm.provider "virtualbox" do |vb|
+        vb.memory = "1024"
+        vb.cpus = 1
+        vb.name = "#{vm_name}"
+    end
+
+    dockerproxy_config.vm.box = "#{os}"
+    dockerproxy_config.vm.host_name = "#{vm_name}"
+    dockerproxy_config.vm.network "private_network", ip: "#{net_ip}"
+
+    dockerproxy_config.vm.provision "docker"
+    dockerproxy_config.vm.provision "shell", inline: <<-SHELL
+      sudo apt-get update
+      mkdir /home/vagrant/docker_mirror_cache
+      mkdir /home/vagrant/docker_mirror_certs
+      docker run --rm --name docker_registry_proxy -d \
+       -p 0.0.0.0:3128:3128 \
+       -v $(pwd)/docker_mirror_cache:/docker_mirror_cache  \
+       -v $(pwd)/docker_mirror_certs:/ca  \
+       -e REGISTRIES="k8s.gcr.io gcr.io quay.io" \
+       rpardini/docker-registry-proxy:latest
+    SHELL
+  end
+end

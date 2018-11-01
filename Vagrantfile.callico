@@ -61,21 +61,16 @@ EOF
       sudo swapoff -a
       sudo sed -i '/ swap / s/^/#/' /etc/fstab
 
-      echo init k8s config with flannel CNI
-      sudo sed -i 's/KUBELET_EXTRA_ARGS=/KUBELET_EXTRA_ARGS=--node-ip=#{master_ip}/' /etc/default/kubelet
-      sudo kubeadm init --apiserver-cert-extra-sans=#{master_ip} --apiserver-advertise-address=#{master_ip} --pod-network-cidr=10.244.0.0/16 --service-cidr 10.96.0.0/12 --node-name #{master_name} |tee /vagrant/kubeadm_init.log
-
-      echo "init CNI flannel"
-      wget https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
-      echo patch kube-flannel.yml for eth1 support
-      sed -i 's/        - --kube-subnet-mgr/        - --kube-subnet-mgr\\n        - -iface=eth1/' kube-flannel.yml
-      sudo kubectl --kubeconfig /etc/kubernetes/admin.conf  apply -f kube-flannel.yml
+      echo init k8s config with callico CNI
+      sudo kubeadm init --apiserver-cert-extra-sans=#{master_ip} --apiserver-advertise-address=#{master_ip} --pod-network-cidr=192.168.0.0/16 --node-name #{master_name} |tee /vagrant/kubeadm_init.log
+      sudo kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f https://docs.projectcalico.org/v3.1/getting-started/kubernetes/installation/hosted/rbac-kdd.yaml
+      sudo kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f https://docs.projectcalico.org/v3.1/getting-started/kubernetes/installation/hosted/kubernetes-datastore/calico-networking/1.7/calico.yaml
 
       echo set kubectl admin config to vagrant account
       mkdir -p ~vagrant/.kube
       sudo cp -i /etc/kubernetes/admin.conf ~vagrant/.kube/config
       sudo chown vagrant:vagrant ~vagrant/.kube/config
-
+      
     SHELL
   end
 
